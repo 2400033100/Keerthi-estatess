@@ -1,5 +1,61 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./styles.css";
+
+const STORAGE_KEY = "keerthi-estate-data";
+
+const defaultEstateData = [
+  {
+    id: 1,
+    name: "Keerthi Residency",
+    floors: [
+      {
+        floorNumber: 1,
+        flats: [
+          {
+            number: "101",
+            status: "Rented",
+            tenantName: "Ramesh Kumar",
+            phone: "9848012345",
+            advance: true,
+            dues: 5000,
+            lastPaid: "21-07-2026",
+            dueDate: "22-08-2026",
+            notes: "Promised to fix the kitchen sink tap next week.",
+          },
+          {
+            number: "102",
+            status: "Vacant",
+            tenantName: "—",
+            phone: "—",
+            advance: false,
+            dues: 0,
+            lastPaid: "—",
+            dueDate: "—",
+            notes: "",
+          },
+        ],
+      },
+      {
+        floorNumber: 2,
+        flats: [
+          {
+            number: "201",
+            status: "Rented",
+            tenantName: "Suresh Reddy",
+            phone: "9123456789",
+            advance: true,
+            dues: 15000,
+            lastPaid: "15-06-2026",
+            dueDate: "15-07-2026",
+            notes: "",
+          },
+        ],
+      },
+    ],
+  },
+  { id: 2, name: "Annapurna Nilayam", floors: [] },
+  { id: 3, name: "Sri Nilayam", floors: [] },
+];
 
 const App = () => {
   // --- AUTHENTICATION STATE ---
@@ -18,60 +74,21 @@ const App = () => {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [flatFormData, setFlatFormData] = useState({});
 
-  // --- UNIFIED DATABASE STATE ---
-  const [estateData, setEstateData] = useState([
-    {
-      id: 1,
-      name: "Keerthi Residency",
-      floors: [
-        {
-          floorNumber: 1,
-          flats: [
-            {
-              number: "101",
-              status: "Rented",
-              tenantName: "Ramesh Kumar",
-              phone: "9848012345",
-              advance: true,
-              dues: 5000,
-              lastPaid: "21-07-2026",
-              dueDate: "22-08-2026",
-              notes: "Promised to fix the kitchen sink tap next week.",
-            },
-            {
-              number: "102",
-              status: "Vacant",
-              tenantName: "—",
-              phone: "—",
-              advance: false,
-              dues: 0,
-              lastPaid: "—",
-              dueDate: "—",
-              notes: "",
-            },
-          ],
-        },
-        {
-          floorNumber: 2,
-          flats: [
-            {
-              number: "201",
-              status: "Rented",
-              tenantName: "Suresh Reddy",
-              phone: "9123456789",
-              advance: true,
-              dues: 15000,
-              lastPaid: "15-06-2026",
-              dueDate: "15-07-2026",
-              notes: "",
-            },
-          ],
-        },
-      ],
-    },
-    { id: 2, name: "Annapurna Nilayam", floors: [] },
-    { id: 3, name: "Sri Nilayam", floors: [] },
-  ]);
+  // --- UNIFIED DATABASE STATE (saved on this device) ---
+  const [estateData, setEstateData] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : defaultEstateData;
+    } catch (e) {
+      return defaultEstateData;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(estateData));
+    } catch (e) {}
+  }, [estateData]);
 
   // Derived current property
   const currentBuilding = estateData.find((p) => p.id === selectedPropertyId);
@@ -257,6 +274,40 @@ const App = () => {
     setSelectedFlat(updatedFlat);
     setIsRecordingPayment(false);
     setPaymentAmount("");
+  };
+
+  // --- BACKUP & RESTORE ---
+  const handleExport = () => {
+    const blob = new Blob([JSON.stringify(estateData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `keerthi-estates-backup-${new Date()
+      .toISOString()
+      .slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if (!Array.isArray(data)) throw new Error("bad file");
+        if (window.confirm("Replace current data with this backup?")) {
+          setEstateData(data);
+        }
+      } catch (err) {
+        alert("This is not a valid backup file.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   };
 
   // --- UI RENDERERS ---
@@ -749,6 +800,22 @@ const App = () => {
           <button className="discreet-btn" onClick={handleAddProperty}>
             + add property
           </button>
+        </div>
+
+        {/* BACKUP & RESTORE */}
+        <div style={{ marginTop: "40px", textAlign: "right" }}>
+          <button className="discreet-btn" onClick={handleExport}>
+            ⬇ backup
+          </button>{" "}
+          <label className="discreet-btn" style={{ cursor: "pointer" }}>
+            ⬆ restore
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleImport}
+              style={{ display: "none" }}
+            />
+          </label>
         </div>
       </div>
     </>
