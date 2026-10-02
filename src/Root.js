@@ -86,7 +86,6 @@ export default function Root() {
         setStatus("Offline – using data saved on this device");
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   // Try again when internet returns
@@ -98,7 +97,6 @@ export default function Root() {
     };
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const handleDataChange = (data) => {
