@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./styles.css";
 
-const STORAGE_KEY = "keerthi-estate-data";
-
 const defaultEstateData = [
   {
     id: 1,
@@ -57,9 +55,9 @@ const defaultEstateData = [
   { id: 3, name: "Sri Nilayam", floors: [] },
 ];
 
-const App = () => {
+const App = ({ initialData, onDataChange, onLogout }) => {
   // --- AUTHENTICATION STATE ---
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [pin, setPin] = useState("");
 
   // --- NAVIGATION & UI STATE ---
@@ -74,20 +72,11 @@ const App = () => {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [flatFormData, setFlatFormData] = useState({});
 
-  // --- UNIFIED DATABASE STATE (saved on this device) ---
-  const [estateData, setEstateData] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : defaultEstateData;
-    } catch (e) {
-      return defaultEstateData;
-    }
-  });
+  // --- UNIFIED DATABASE STATE (saved & synced by Root.js) ---
+  const [estateData, setEstateData] = useState(initialData || defaultEstateData);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(estateData));
-    } catch (e) {}
+    if (onDataChange) onDataChange(estateData);
   }, [estateData]);
 
   // Derived current property
@@ -112,6 +101,7 @@ const App = () => {
   };
 
   const handleLogout = () => {
+    if (onLogout) onLogout();
     setIsLoggedIn(false);
     setPin("");
     setSelectedPropertyId(null);
