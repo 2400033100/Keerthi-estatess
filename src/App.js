@@ -108,6 +108,53 @@ const App = ({ initialData, onDataChange, onLogout }) => {
     setSelectedFlat(null);
   };
 
+  // --- DATE HELPERS ---
+  const parseDate = (str) => {
+    if (!str || str === "—") return null;
+    let y, m, d;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) [y, m, d] = str.split("-").map(Number);
+    else if (/^\d{2}-\d{2}-\d{4}$/.test(str)) [d, m, y] = str.split("-").map(Number);
+    else return null;
+    return new Date(y, m - 1, d);
+  };
+
+  const toISO = (str) => {
+    const dt = parseDate(str);
+    if (!dt) return "";
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  };
+
+  const formatDate = (str) => {
+    const dt = parseDate(str);
+    if (!dt) return "—";
+    return `${String(dt.getDate()).padStart(2, "0")}-${String(dt.getMonth() + 1).padStart(2, "0")}-${dt.getFullYear()}`;
+  };
+
+  const getDueInfo = (dueStr) => {
+    const due = parseDate(dueStr);
+    if (!due) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const days = Math.round((due - today) / 86400000);
+    if (days < 0)
+      return { text: `Overdue by ${-days} day${-days === 1 ? "" : "s"}`, tone: "late" };
+    if (days === 0) return { text: "Due today", tone: "soon" };
+    return {
+      text: `Due in ${days} day${days === 1 ? "" : "s"}`,
+      tone: days <= 3 ? "soon" : "ok",
+    };
+  };
+
+  const renderDueBox = (dueStr, compact) => {
+    const info = getDueInfo(dueStr);
+    if (!info) return null;
+    return (
+      <div className={`due-box ${info.tone}${compact ? " compact" : ""}`}>
+        {info.text}
+      </div>
+    );
+  };
+
   // --- SEARCH LOGIC ---
   const allFlats = estateData.flatMap((property) =>
     property.floors.flatMap((floor) =>
@@ -531,6 +578,53 @@ const App = ({ initialData, onDataChange, onLogout }) => {
                 }
               />
             </div>
+            {flatFormData.advance && (
+              <div className="form-group">
+                <label>Advance Amount (₹)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={flatFormData.advanceAmount ?? ""}
+                  onChange={(e) =>
+                    setFlatFormData({
+                      ...flatFormData,
+                      advanceAmount:
+                        e.target.value === "" ? "" : parseInt(e.target.value) || 0,
+                    })
+                  }
+                  placeholder="e.g. 50000"
+                />
+              </div>
+            )}
+            <div className="form-group">
+              <label>Last Paid On</label>
+              <input
+                type="date"
+                className="form-input"
+                value={toISO(flatFormData.lastPaid)}
+                onChange={(e) =>
+                  setFlatFormData({
+                    ...flatFormData,
+                    lastPaid: e.target.value || "—",
+                  })
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>Next Due Date</label>
+              <input
+                type="date"
+                className="form-input"
+                value={toISO(flatFormData.dueDate)}
+                onChange={(e) =>
+                  setFlatFormData({
+                    ...flatFormData,
+                    dueDate: e.target.value || "—",
+                  })
+                }
+              />
+              {renderDueBox(flatFormData.dueDate)}
+            </div>
             <div className="form-group">
               <label>Current Dues (₹)</label>
               <input
@@ -647,6 +741,16 @@ const App = ({ initialData, onDataChange, onLogout }) => {
               <span className="value bold">{selectedFlat.tenantName}</span>
             </div>
             <div className="profile-row">
+              <span className="label">Advance:</span>
+              <span className="value">
+                {selectedFlat.advance
+                  ? selectedFlat.advanceAmount
+                    ? `₹${Number(selectedFlat.advanceAmount).toLocaleString("en-IN")} received`
+                    : "Received"
+                  : "Not paid"}
+              </span>
+            </div>
+            <div className="profile-row">
               <span className="label">Phone:</span>
               <div className="phone-action-group">
                 <span className="value">{selectedFlat.phone}</span>
@@ -657,7 +761,7 @@ const App = ({ initialData, onDataChange, onLogout }) => {
             </div>
             <div className="profile-row">
               <span className="label">Last Paid:</span>
-              <span className="value">{selectedFlat.lastPaid}</span>
+              <span className="value">{formatDate(selectedFlat.lastPaid)}</span>
             </div>
             <div className="profile-row highlight-due">
               <span className="label">Due Date:</span>
@@ -666,13 +770,15 @@ const App = ({ initialData, onDataChange, onLogout }) => {
                   selectedFlat.dues > 0 ? "dues-pending" : ""
                 }`}
               >
-                {selectedFlat.dueDate}{" "}
+                {formatDate(selectedFlat.dueDate)}{" "}
                 {selectedFlat.dues > 0 && `(₹${selectedFlat.dues} Due)`}
               </span>
             </div>
           </>
         )}
       </div>
+
+      {selectedFlat.status === "Rented" && renderDueBox(selectedFlat.dueDate)}
 
       {selectedFlat.notes && (
         <div className="notes-display-card">
@@ -812,6 +918,7 @@ const App = ({ initialData, onDataChange, onLogout }) => {
                         <p>
                           Tenant: <strong>{flat.tenantName}</strong>
                         </p>
+                        {renderDueBox(flat.dueDate, true)}
                         <p
                           className={
                             flat.dues > 0 ? "dues-pending" : "dues-clear"
