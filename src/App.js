@@ -176,6 +176,18 @@ const App = ({ initialData, onDataChange, onLogout }) => {
       return;
     }
 
+    const duplicate = currentBuilding.floors.some((fl) =>
+      fl.flats.some(
+        (f) =>
+          f.number === flatFormData.number &&
+          !(isEditing && f.number === selectedFlat.number)
+      )
+    );
+    if (duplicate) {
+      alert("This flat number already exists in this property.");
+      return;
+    }
+
     const floorNum = isEditing
       ? selectedFlat.floorNumber
       : currentFloorForNewFlat;
@@ -264,6 +276,108 @@ const App = ({ initialData, onDataChange, onLogout }) => {
     setSelectedFlat(updatedFlat);
     setIsRecordingPayment(false);
     setPaymentAmount("");
+  };
+
+  // --- EDIT & DELETE ---
+  const handleRenameProperty = (id) => {
+    const prop = estateData.find((p) => p.id === id);
+    const name = window.prompt("Rename property:", prop.name);
+    if (name && name.trim() !== "") {
+      setEstateData(
+        estateData.map((p) => (p.id === id ? { ...p, name: name.trim() } : p))
+      );
+    }
+  };
+
+  const handleDeleteProperty = (id) => {
+    const prop = estateData.find((p) => p.id === id);
+    if (
+      window.confirm(
+        `Delete "${prop.name}" and all its flats? This cannot be undone.`
+      )
+    ) {
+      setEstateData(estateData.filter((p) => p.id !== id));
+      setSelectedPropertyId(null);
+      setSelectedFlat(null);
+    }
+  };
+
+  const handleEditFloor = (floorNumber) => {
+    const input = window.prompt("Change floor number:", floorNumber);
+    if (input === null) return;
+    const n = parseInt(input);
+    if (isNaN(n)) {
+      alert("Please enter a number.");
+      return;
+    }
+    if (
+      n !== floorNumber &&
+      currentBuilding.floors.some((f) => f.floorNumber === n)
+    ) {
+      alert("That floor already exists.");
+      return;
+    }
+    setEstateData(
+      estateData.map((p) =>
+        p.id === selectedPropertyId
+          ? {
+              ...p,
+              floors: p.floors
+                .map((f) =>
+                  f.floorNumber === floorNumber ? { ...f, floorNumber: n } : f
+                )
+                .sort((a, b) => a.floorNumber - b.floorNumber),
+            }
+          : p
+      )
+    );
+  };
+
+  const handleDeleteFloor = (floorNumber) => {
+    const floor = currentBuilding.floors.find(
+      (f) => f.floorNumber === floorNumber
+    );
+    const msg =
+      floor.flats.length > 0
+        ? `Delete Floor ${floorNumber} and its ${floor.flats.length} flat(s)?`
+        : `Delete Floor ${floorNumber}?`;
+    if (window.confirm(msg)) {
+      setEstateData(
+        estateData.map((p) =>
+          p.id === selectedPropertyId
+            ? {
+                ...p,
+                floors: p.floors.filter((f) => f.floorNumber !== floorNumber),
+              }
+            : p
+        )
+      );
+    }
+  };
+
+  const handleDeleteFlat = () => {
+    if (window.confirm(`Delete Flat ${selectedFlat.number}?`)) {
+      setEstateData(
+        estateData.map((p) =>
+          p.id === selectedPropertyId
+            ? {
+                ...p,
+                floors: p.floors.map((f) =>
+                  f.floorNumber === selectedFlat.floorNumber
+                    ? {
+                        ...f,
+                        flats: f.flats.filter(
+                          (x) => x.number !== selectedFlat.number
+                        ),
+                      }
+                    : f
+                ),
+              }
+            : p
+        )
+      );
+      setSelectedFlat(null);
+    }
   };
 
   // --- BACKUP & RESTORE ---
@@ -585,6 +699,9 @@ const App = ({ initialData, onDataChange, onLogout }) => {
         >
           Edit Flat Details
         </button>
+        <button className="danger-action-btn" onClick={handleDeleteFlat}>
+          Delete Flat
+        </button>
       </div>
     </div>
   );
@@ -612,7 +729,16 @@ const App = ({ initialData, onDataChange, onLogout }) => {
           ← Back to Properties
         </button>
         <header className="header">
-          <h1>{currentBuilding.name}</h1>
+          <h1>
+            {currentBuilding.name}{" "}
+            <button
+              className="icon-btn"
+              title="Rename"
+              onClick={() => handleRenameProperty(currentBuilding.id)}
+            >
+              ✎
+            </button>
+          </h1>
           <p className="sub-header-text">{totalFlats} Flats total</p>
         </header>
 
@@ -638,7 +764,25 @@ const App = ({ initialData, onDataChange, onLogout }) => {
         <div className="floors-container">
           {currentBuilding.floors.map((floor, index) => (
             <div key={index} className="floor-section">
-              <h2 className="floor-title">Floor {floor.floorNumber}</h2>
+              <div className="floor-header">
+                <h2 className="floor-title">Floor {floor.floorNumber}</h2>
+                <div>
+                  <button
+                    className="icon-btn"
+                    title="Change floor number"
+                    onClick={() => handleEditFloor(floor.floorNumber)}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    className="icon-btn danger"
+                    title="Delete floor"
+                    onClick={() => handleDeleteFloor(floor.floorNumber)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
               <div className="flat-grid">
                 {floor.flats.map((flat) => (
                   <div
@@ -725,6 +869,37 @@ const App = ({ initialData, onDataChange, onLogout }) => {
         </button>
       </div>
 
+      <div className="stats-strip">
+        <div className="stat-tile">
+          <span className="stat-num">{allFlats.length}</span>
+          <span className="stat-label">Flats</span>
+        </div>
+        <div className="stat-tile rented">
+          <span className="stat-num">
+            {allFlats.filter((f) => f.status === "Rented").length}
+          </span>
+          <span className="stat-label">Rented</span>
+        </div>
+        <div className="stat-tile vacant">
+          <span className="stat-num">
+            {allFlats.filter((f) => f.status === "Vacant").length}
+          </span>
+          <span className="stat-label">Vacant</span>
+        </div>
+        <div className="stat-tile dues">
+          <span className="stat-num">
+            ₹
+            {allFlats
+              .reduce(
+                (sum, f) => sum + (f.status === "Rented" ? f.dues || 0 : 0),
+                0
+              )
+              .toLocaleString("en-IN")}
+          </span>
+          <span className="stat-label">Dues</span>
+        </div>
+      </div>
+
       <div className="search-container">
         <input
           type="text"
@@ -778,6 +953,26 @@ const App = ({ initialData, onDataChange, onLogout }) => {
                   <p>{totalFlats} Flats total</p>
                 </div>
                 <div className="property-status-wrapper">
+                  <button
+                    className="icon-btn"
+                    title="Rename"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRenameProperty(property.id);
+                    }}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    className="icon-btn danger"
+                    title="Delete"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteProperty(property.id);
+                    }}
+                  >
+                    🗑
+                  </button>
                   <span className="arrow">→</span>
                 </div>
               </div>
